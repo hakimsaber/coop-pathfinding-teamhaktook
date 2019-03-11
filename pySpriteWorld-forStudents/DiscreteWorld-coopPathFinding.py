@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Nicolas, 2015-11-18
+# 3415762, 2018-03-10
 
 from __future__ import absolute_import, print_function, unicode_literals
 from gameclass import Game,check_init_game_done
@@ -16,16 +17,20 @@ import random
 import numpy as np
 import sys
 
+from coopPlayer1 import *
+
 # ---- ---- ---- ---- ---- ----
 # ---- Misc                ----
 # ---- ---- ---- ---- ---- ----
 
-    
+
+
 # ---- ---- ---- ---- ---- ----
 # ---- Main                ----
 # ---- ---- ---- ---- ---- ----
 
 game = Game()
+board = None
 
 def init(_boardname=None):
     global player,game
@@ -40,7 +45,7 @@ def init(_boardname=None):
     #player = game.player
     
 def main():
-
+    global board
     #for arg in sys.argv:
     iterations = 50 # default
     if len(sys.argv) == 2:
@@ -49,10 +54,6 @@ def main():
     print (iterations)
 
     init()
-    
-    
-    
-
     
     #-------------------------------
     # Initialisation
@@ -70,11 +71,19 @@ def main():
     
     # on localise tous les objets ramassables
     goalStates = [o.get_rowcol() for o in game.layers['ramassable']]
+    nbItems = len(goalStates)
     print ("Goal states:", goalStates)
         
     # on localise tous les murs
     wallStates = [w.get_rowcol() for w in game.layers['obstacle']]
     #print ("Wall states:", wallStates)
+    
+    (lig, col) = (20, 20)
+    board = Board(lig, col, nbPlayers, nbItems)
+    board.setWalls(wallStates)
+    board.setItems(goalStates)
+    board.setPlayers(initStates)
+    pPlayer = [Player(board, i+1) for i in range(nbPlayers)]
     
     #-------------------------------
     # Placement aleatoire des fioles 
@@ -89,54 +98,60 @@ def main():
     # Boucle principale de déplacements 
     #-------------------------------
     
-        
-    # bon ici on fait juste plusieurs random walker pour exemple...
-    
-    posPlayers = initStates
-
     for i in range(iterations):
-        
+##        board.show()
         for j in range(nbPlayers): # on fait bouger chaque joueur séquentiellement
-            row,col = posPlayers[j]
-
-            x_inc,y_inc = random.choice([(0,1),(0,-1),(1,0),(-1,0)])
-            next_row = row+x_inc
-            next_col = col+y_inc
-            # and ((next_row,next_col) not in posPlayers)
-            if ((next_row,next_col) not in wallStates) and next_row>=0 and next_row<=19 and next_col>=0 and next_col<=19:
+            # bon ici on fait juste plusieurs random walker pour exemple...
+##            row,col = posPlayers[j]
+##
+##            x_inc,y_inc = random.choice([(0,1),(0,-1),(1,0),(-1,0)])
+##            next_row = row+x_inc
+##            next_col = col+y_inc
+##            # and ((next_row,next_col) not in posPlayers)
+##            if ((next_row,next_col) not in wallStates) and next_row>=0 and next_row<=19 and next_col>=0 and next_col<=19:
+##                players[j].set_rowcol(next_row,next_col)
+##                print ("pos :", j, next_row,next_col)
+##                game.mainiteration()
+##    
+##                col=next_col
+##                row=next_row
+##                posPlayers[j]=(row,col)
+            p = pPlayer[j]
+            (row,col) = board.getPlayer(p.player)
+            (next_row, next_col) = p.play(board)
+            #print((next_row, next_col))
+            if board.setPlayer(p.player,(next_row, next_col)):
                 players[j].set_rowcol(next_row,next_col)
-                print ("pos :", j, next_row,next_col)
+                #print ("pos :", p.player, next_row,next_col)
                 game.mainiteration()
-    
                 col=next_col
                 row=next_row
-                posPlayers[j]=(row,col)
-            
-      
-        
-            
+                
+                
             # si on a  trouvé un objet on le ramasse
-            if (row,col) in goalStates:
+            if board.isOverlaping(p.player): # Si le joueur est sur un item
                 o = players[j].ramasse(game.layers)
                 game.mainiteration()
-                print ("Objet trouvé par le joueur ", j)
-                goalStates.remove((row,col)) # on enlève ce goalState de la liste
+                print ("Objet trouvé par le joueur ", p.player)
+                item = board.whatOverlap(p.player)
                 score[j]+=1
                 
         
                 # et on remet un même objet à un autre endroit
-                x = random.randint(1,19)
-                y = random.randint(1,19)
-                while (x,y) in wallStates:
+                x = random.randint(1,board.n-1)
+                y = random.randint(1,board.m-1)
+                while not board.isEmpty((x,y)):
                     x = random.randint(1,19)
                     y = random.randint(1,19)
                 o.set_rowcol(x,y)
-                goalStates.append((x,y)) # on ajoute ce nouveau goalState
+                board.setItem(item, (x, y))
+                print("Nouvelle objet se trouve :", (x, y))
                 game.layers['ramassable'].add(o)
                 game.mainiteration()                
                 
+                
                 break
-            
+        
     
     print ("scores:", score)
     pygame.quit()
