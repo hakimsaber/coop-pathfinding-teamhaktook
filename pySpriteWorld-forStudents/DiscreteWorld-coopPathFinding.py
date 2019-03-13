@@ -23,7 +23,8 @@ from coopPlayer1 import *
 # ---- Misc                ----
 # ---- ---- ---- ---- ---- ----
 
-
+def estCoupValide(board, pos, nextPos):
+    return heuristique_manhattan(pos, nextPos) <= 1 and not board.isWall(nextPos) and not board.isPlayer(nextPos)
 
 # ---- ---- ---- ---- ---- ----
 # ---- Main                ----
@@ -35,11 +36,11 @@ board = None
 def init(_boardname=None):
     global player,game
     # pathfindingWorld_MultiPlayer4
-    name = _boardname if _boardname is not None else 'pathfindingWorld_MultiPlayer1'
+    name = _boardname if _boardname is not None else 'pathfindingWorld_MultiPlayer4'
     game = Game('Cartes/' + name + '.json', SpriteBuilder)
     game.O = Ontology(True, 'SpriteSheet-32x32/tiny_spritesheet_ontology.csv')
     game.populate_sprite_names(game.O)
-    game.fps = 5  # frames per second
+    game.fps = 100  # frames per second
     game.mainiteration()
     game.mask.allow_overlaping_players = True
     #player = game.player
@@ -47,7 +48,7 @@ def init(_boardname=None):
 def main():
     global board
     #for arg in sys.argv:
-    iterations = 50 # default
+    iterations = 1000 # default
     if len(sys.argv) == 2:
         iterations = int(sys.argv[1])
     print ("Iterations: ")
@@ -83,7 +84,7 @@ def main():
     board.setWalls(wallStates)
     board.setItems(goalStates)
     board.setPlayers(initStates)
-    pPlayer = [Player(board, i+1) for i in range(nbPlayers)]
+    pPlayer = [Player(board, i+1, players[i]) for i in range(nbPlayers)]
     
     #-------------------------------
     # Placement aleatoire des fioles 
@@ -101,26 +102,12 @@ def main():
     for i in range(iterations):
 ##        board.show()
         for j in range(nbPlayers): # on fait bouger chaque joueur séquentiellement
-            # bon ici on fait juste plusieurs random walker pour exemple...
-##            row,col = posPlayers[j]
-##
-##            x_inc,y_inc = random.choice([(0,1),(0,-1),(1,0),(-1,0)])
-##            next_row = row+x_inc
-##            next_col = col+y_inc
-##            # and ((next_row,next_col) not in posPlayers)
-##            if ((next_row,next_col) not in wallStates) and next_row>=0 and next_row<=19 and next_col>=0 and next_col<=19:
-##                players[j].set_rowcol(next_row,next_col)
-##                print ("pos :", j, next_row,next_col)
-##                game.mainiteration()
-##    
-##                col=next_col
-##                row=next_row
-##                posPlayers[j]=(row,col)
             p = pPlayer[j]
             (row,col) = board.getPlayer(p.player)
             (next_row, next_col) = p.play(board)
             #print((next_row, next_col))
-            if board.setPlayer(p.player,(next_row, next_col)):
+            if estCoupValide(board, (row, col), (next_row, next_col)):
+                board.setPlayer(p.player,(next_row, next_col))
                 players[j].set_rowcol(next_row,next_col)
                 #print ("pos :", p.player, next_row,next_col)
                 game.mainiteration()
@@ -130,27 +117,28 @@ def main():
                 
             # si on a  trouvé un objet on le ramasse
             if board.isOverlaping(p.player): # Si le joueur est sur un item
-                o = players[j].ramasse(game.layers)
-                game.mainiteration()
-                print ("Objet trouvé par le joueur ", p.player)
-                item = board.whatOverlap(p.player)
-                score[j]+=1
+                if (p.wantPickup(board)):
+                    o = p.pickUp(board, game.layers)
+                    game.mainiteration()
+                    print ("Objet trouvé par le joueur ", p.player)
+                    item = board.whatOverlap(p.player)
+                    score[j]+=1
+                    
+            
+                    # et on remet un même objet à un autre endroit
+                    x = random.randint(1,board.n-1)
+                    y = random.randint(1,board.m-1)
+                    while not board.isEmpty((x,y)):
+                        x = random.randint(1,19)
+                        y = random.randint(1,19)
+                    o.set_rowcol(x,y)
+                    board.setItem(item, (x, y))
+                    print("Nouvelle objet se trouve :", (x, y))
+                    game.layers['ramassable'].add(o)
+                    game.mainiteration()                
                 
-        
-                # et on remet un même objet à un autre endroit
-                x = random.randint(1,board.n-1)
-                y = random.randint(1,board.m-1)
-                while not board.isEmpty((x,y)):
-                    x = random.randint(1,19)
-                    y = random.randint(1,19)
-                o.set_rowcol(x,y)
-                board.setItem(item, (x, y))
-                print("Nouvelle objet se trouve :", (x, y))
-                game.layers['ramassable'].add(o)
-                game.mainiteration()                
                 
-                
-                break
+                    break
         
     
     print ("scores:", score)
